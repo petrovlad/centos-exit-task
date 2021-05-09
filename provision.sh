@@ -103,23 +103,52 @@ then
 	echo "wget has been installed"
 fi
 
-echo "Downloading mongodb..."
+echo "Downloading file 'mongodb-linux-x86_64-3.6.5.tgz'..."
 wget --quiet https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.6.5.tgz
 if [ $? -eq 0 ] 
 then
-	echo "mongodb has been downloaded"
+	echo "'mongodb-linux-x86_64-3.6.5.tgz' has been downloaded"
 else
-	echo "some errors occurs"
+	echo "some errors occurs while downloading with wget"
 fi
 
 
 # 7.	(as mongo) Download with curl https://fastdl.mongodb.org/src/mongodb-src-r3.6.5.tar.gz
 
+echo "Downloading file 'mongodb-src-r3.6.5.tar.gz'"
+curl --silent --remote-name https://fastdl.mongodb.org/src/mongodb-src-r3.6.5.tar.gz
+if [ $? -eq 0 ]
+then
+	echo "'mongodb-src-r3.6.5.tar.gz' has been downloaded"
+else
+	echo "some errors occurs while downloading with curl"
+fi
+
 # 8.	(as mongo) Unpack mongodb-linux-x86_64-3.6.5.tgz to /tmp/
+
+echo "Extracting 'mongodb-linux-x86_64-3.6.5.tgz' to /tmp"
+sudo --user=mongo tar -xzf mongodb-linux-x86_64-3.6.5.tgz -C /tmp
+if [ $? -eq 0 ]
+then
+	echo "'mongodb-linux-x86_64-3.6.5/' has been extracted to /tmp"
+else
+	echo "some errors occurs while extracting"
+fi
 
 # 9.	(as mongo) Copy ./mongodb-linux-x86_64-3.6.5/* to /apps/mongo/
 
+echo "Copying '/tmp/mongodb-linux-x86_64-3.6.5/' to /apps/mongo"
+sudo --user=mongo cp --recursive /tmp/mongodb-linux-x86_64-3.6.5/ /apps/mongo
+if [ $? -eq 0 ]
+then
+	echo "'mongodb-linux-x86_64-3.6.5/' has been copied"
+else
+	echo "some errors occurs while copying"
+fi
+
 # 10.	(as mongo) Update PATH on runtime by setting it to PATH=<mongodb-install-directory>/bin:$PATH
+
+
 
 # 11.	(as mongo) Update PATH in .bash_profile and .bashrc with the same
 
