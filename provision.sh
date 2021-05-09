@@ -148,9 +148,11 @@ fi
 
 # 10.	(as mongo) Update PATH on runtime by setting it to PATH=<mongodb-install-directory>/bin:$PATH
 
-
+export PATH="/apps/mongo/mongodb-linux-x86_64-3.6.5/bin${PATH:+:${PATH}}"
 
 # 11.	(as mongo) Update PATH in .bash_profile and .bashrc with the same
+
+sudo --user mongo echo -e "# Path to mongo according to the task\nexport PATH="/apps/mongo/mongodb-linux-x86_64-3.6.5/bin${PATH:+:${PATH}}"\n" >> ~/.bashrc
 
 # 12.	(as root) Setup number of allowed processes for mongo user: soft and hard = 32000
 
