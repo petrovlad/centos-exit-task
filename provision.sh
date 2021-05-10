@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # parameter - username
 # if user exists, then exit code = 0, otherwise not 0
 function user_exists() {
@@ -32,6 +34,20 @@ function create_or_change_group() {
 		groupadd --gid $2 "$1"
 	fi
 }
+
+# parameters: login src_path dest_path
+function extract_tar_silently() {
+	echo "Extracting '$2' to $3"
+	sudo -u "$1" tar -xzf "$2" -C "$3"
+	if [ $? -eq 0 ]
+	then
+		echo "'$2' has been extracted to '$3'"
+	else
+		echo "some errors occurs while extracting"
+	fi
+}
+
+
 
 # You are to develop a bash script provision.sh that being invoked as root performs the following:
 
@@ -68,26 +84,28 @@ adduser --gid $MONGO_GID --uid $MONGO_UID "$MONGO_LOGIN"
 #[ -e /apps ] && rm -r /apps
 
 mkdir --parents /apps/mongo
-#chmod --recursive 750 /apps
-#chown --recursive $MONGO_UID:$MONGO_GID /apps
+chmod 750 /apps/mongo
+chown $MONGO_UID:$MONGO_GID /apps/mongo
 
 # 4.	(as root) Create folders /apps/mongodb/, give 750 permissions, set owner mongo:staff
 
 [ -e /apps/mongodb ] && rm -r /apps/mongodb
-#[ -e /apps ] && rm -r /apps
 
 mkdir --parents /apps/mongodb
-chmod --recursive 750 /apps
-chown --recursive $MONGO_UID:$MONGO_GID
+chmod 750 /apps/mongodb
+chown $MONGO_UID:$MONGO_GID /apps/mongodb
+
+#idk should i set perms and ownership on /apps & /logs dirs, so i let it here
+#chmod --recursive 750 /apps
+#chown --recursive $MONGO_UID:$MONGO_GID /apps
 
 # 5.	(as root) Create folders /logs/mongo/, give 740 permissions, set owner mongo:staff
 
 [ -e /logs/mongo ] && rm -r /logs/mongo
-#[ -e /apps ] && rm -r /apps
 
 mkdir --parents /logs/mongo
-chmod --recursive 740 /logs
-chown --recursive $MONGO_UID:$MONGO_GID /logs
+chmod 740 /logs/mongo
+chown $MONGO_UID:$MONGO_GID /logs/mongo
 
 # 6.	(as mongo) Download with wget https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.6.5.tgz
 
@@ -103,51 +121,50 @@ then
 fi
 
 # because of wget can't overwrite existing files, we need to specify filename with -O
-MONGODB_LINUX_FILENAME="mongodb-linux-x86_64-3.6.5.tgz"
-echo "Downloading file '$MONGODB_LINUX_FILENAME'..."
-sudo -u "$MONGO_LOGIN" wget --quiet https://fastdl.mongodb.org/linux/"$MONGODB_LINUX_FILENAME" -O "$MONGODB_LINUX_FILENAME"
+LINUX_TAR_FILENAME="mongodb-linux-x86_64-3.6.5.tgz"
+DOWNLOAD_DIR="/tmp"
+echo "Downloading file '$LINUX_TAR_FILENAME'..."
+sudo -u "$MONGO_LOGIN" wget --quiet https://fastdl.mongodb.org/linux/"$LINUX_TAR_FILENAME" -O "$DOWNLOAD_DIR/$LINUX_TAR_FILENAME"
 if [ $? -eq 0 ] 
 then
-	echo "'$MONGODB_LINUX_FILENAME' has been downloaded"
+	echo "'$LINUX_TAR_FILENAME' has been downloaded"
 else
 	echo "some errors occurs while downloading with wget"
 fi
 
 
 # 7.	(as mongo) Download with curl https://fastdl.mongodb.org/src/mongodb-src-r3.6.5.tar.gz
-MONGODB_SRC_FILENAME="mongodb-src-r3.6.5.tar.gz"
-echo "Downloading file '$MONGODM_SRC_FILENAME'"
-sudo -u "$MONGO_LOGIN" curl --silent --remote-name https://fastdl.mongodb.org/src/"$MONGODB_SRC_FILENAME"
+SRC_TAR_FILENAME="mongodb-src-r3.6.5.tar.gz"
+echo "Downloading file '$SRC_TAR_FILENAME'"
+sudo -u "$MONGO_LOGIN" curl --silent -o "$DOWNLOAD_DIR/$SRC_TAR_FILENAME" https://fastdl.mongodb.org/src/"$SRC_TAR_FILENAME"
 if [ $? -eq 0 ]
 then
-	echo "'$MONGODB_SRC_FILENAME' has been downloaded"
+	echo "'$SRC_TAR_FILENAME' has been downloaded"
 else
 	echo "some errors occurs while downloading with curl"
 fi
 
 # 8.	(as mongo) Unpack mongodb-linux-x86_64-3.6.5.tgz to /tmp/
 
-echo "Extracting '$MONGODB_LINUX_FILENAME' to /tmp"
-sudo -u "$MONGO_LOGIN" tar -xzf "$MONGODB_LINUX_FILENAME" -C /tmp
-if [ $? -eq 0 ]
-then
-	echo "'$MONGODB_LINUX_FILENAME' has been extracted to /tmp"
-else
-	echo "some errors occurs while extracting"
-fi
+extract_tar_silently "$MONGO_LOGIN" "$DOWNLOAD_DIR/$LINUX_TAR_FILENAME" "/tmp"
+
+# i think i should extract 2nd archive too
+
+extract_tar_silently "$MONGO_LOGIN" "$DOWNLOAD_DIR/$SRC_TAR_FILENAME" "/tmp"
+
+LINUX_FILENAME=${LINUX_TAR_FILENAME%%.tgz}
+SRC_FILENAME=${SRC_TAR_FILENAME%%.tar.gz}
 
 # 9.	(as mongo) Copy ./mongodb-linux-x86_64-3.6.5/* to /apps/mongo/
 
-echo "Copying '/tmp/$MONGODB_LINUX_FILENAME/*' to /apps/mongo"
-sudo -u "$MONGO_LOGIN" cp /tmp/$MONGODB_LINUX_FILENAME/* /apps/mongo
+echo "Copying '/tmp/$LINUX_FILENAME/' to /apps/mongo"
+sudo -u "$MONGO_LOGIN" cp -RT "/tmp/$LINUX_FILENAME/" /apps/mongo
 if [ $? -eq 0 ]
 then
-	echo "'$MONGODB_LINUX_FILENAME' has been copied"
+	echo "'/tmp/$LINUX_FILENAME/*' has been copied"
 else
 	echo "some errors occurs while copying"
 fi
-
-exit
 
 # 10.	(as mongo) Update PATH on runtime by setting it to PATH=<mongodb-install-directory>/bin:$PATH
 
@@ -157,16 +174,19 @@ export PATH="/apps/mongo/bin${PATH:+:${PATH}}"
 # 11.	(as mongo) Update PATH in .bash_profile and .bashrc with the same
 
 # get mongo home directory because sudo will overwrite it with root home dir
-MONGO_HOME=$( awk -F: '$1 ~ /^mongo$/ { print $6 }' /etc/passwd )
+MONGO_HOME=$( awk -v regex="^$MONGO_LOGIN$" -F: '$1 ~ regex { print $6 }' /etc/passwd )
 # MONGO_HOME=$( sudo --user mongo env | awk -F= '$1 ~ /^HOME$/ { print $2 }' )
-MONGODB_INSTALL_PATH="/apps/mongo"
-sudo -u "$MONGO_LOGIN" echo -e "# Path to mongo according to the task\nexport PATH="apps/mongo/bin${PATH:+:${PATH}}"\n" >> $MONGO_HOME/.bashprofile
-sudo -u "$MONGO_LOGIN" echo -e "# Path to mongo according to the task\nexport PATH="apps/mongo/bin${PATH:+:${PATH}}"\n" >> $MONGO_HOME/.bashrc
+
+# MONGODB_INSTALL_PATH="/apps/mongo"
+sudo -u "$MONGO_LOGIN" echo -e "# Path to mongo according to the task\nexport PATH="apps/mongo/bin${PATH:+:${PATH}}"\n" >> "$MONGO_HOME"/.bashprofile
+sudo -u "$MONGO_LOGIN" echo -e "# Path to mongo according to the task\nexport PATH="apps/mongo/bin${PATH:+:${PATH}}"\n" >> "$MONGO_HOME"/.bashrc
 
 # 12.	(as root) Setup number of allowed processes for mongo user: soft and hard = 32000
 
 LIMITS_PATH="/etc/security/limits.conf"
-sed '/End of file/d' "$LIMITS_PATH"
+sed -i '/End of file/d' "$LIMITS_PATH"
+# delete all records about $MONGO_LOGIN
+sed -i "/$MONGO_LOGIN/d" "$LIMITS_PATH"
 echo "$MONGO_LOGIN\tsoft\tproc\t32000" >> "$LIMITS_PATH"
 echo "$MONGO_LOGIN\thard\tproc\t32000" >> "$LIMITS_PATH"
 echo "# End of file" >> "$LIMITS_PATH"
@@ -177,35 +197,34 @@ echo -e "$NAME_SURNAME_LOGIN\tALL=(ALL)\tNOPASSWD:/apps/mongo/bin/mongod" >> /et
 
 # 14.	(as root) Create mongo.conf from sample config file from archive 7.
 
-
+# because of cp='cp -i' alias in .bashrc
+\cp /tmp/$SRC_FILENAME/rpm/mongod.conf /etc/
 
 # 15.	(as root) Replace systemLog.path and storage.dbPath with /logs/mongo/ and /apps/mongodb/ accordingly in mongo.conf using sed or AWK
 
+sed -i "s,\(^[[:blank:]]*path: \).*,\\1/logs/mongo/mongod.log," /etc/mongod.conf
+sed -i "s,\(^[[:blank:]]*dbPath: \).*,\\1/apps/mongo," /etc/mongod.conf
+sed -i "s,\(^[[:blank:]]*pidFilePath: \).*\( \#.*\),\\1/apps/mongo/mongod.pid\\2," /etc/mongod.conf
 
+exit
 
 # 16.	(as root) Create SystemD unit file called mongo.service. Unit file requirenments:
-
-
-
 # 	a.	Pre-Start: Check if file /apps/mongo/bin/mongod and folders (/apps/mongodb/ and /logs/mongo/) exist, check if permissions and ownership are set correctly.
+
+
+systemctl daemon-reload
 
 # 17.	(as root) Add mongo.service to autostart
 
+systemctl enable mongo.service
 
 # Check
-
 # 1.	Run mongod from Name_Surname
-
 # 2.	Prove that process is running
-
 # 	a.	PID exists
-
-# 	b.	Corresponding [initandlisten] message in mongo log 
-
+# 	b.	Corresponding [init and listen] message in mongo log 
 # 	c.	Port is really listening
-
 # 3.	Stop the process
-
 # 4.	Verify that systemd unit is working (start, status, stop, status).
 
 
