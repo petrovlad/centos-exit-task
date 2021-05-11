@@ -1,12 +1,10 @@
 #!/bin/bash
 
-set -e
-
 # parameter - username
 # if user exists, then exit code = 0, otherwise not 0
 function user_exists() {
-	id "$1" &> /dev/null 
-#	grep -q "$1" /etc/passwd
+#	id "$1" &> /dev/null 
+	grep -q "$1" /etc/passwd
 }
 
 # parameter - groupname
@@ -15,15 +13,37 @@ function group_exists() {
 	grep -q "$1" /etc/group
 }
 
+# parameter - username
 function delete_user_if_exists() {
 	if ( user_exists "$1" )
 	then
-		echo -e "User '$1' already exists. Deleting him..."
+		echo -e "Deleting user "$1"..."
+		who | grep -i -m 1 "$NAME_SURNAME_LOGIN"
+		# if exit code == 0 then user is logged in
+		pkill -KILL -u "$1"
 		userdel --remove "$1"	
 	fi 
 }
 
+# parameters - groupname
+# deletes group and it members
+function delete_group_if_exists() {
+	if ( group_exists "$1" )
+	then
+        	GROUPNAME=$1
+        	GROUPGID=$( awk -F: -v regex="^$GROUPNAME$" '$1 ~ regex { print $3 }' /etc/group )
+        	MEMBERS=$( awk -F: -v regex="^$GROUPGID$" '$4 ~ regex { print $1 }' /etc/passwd )
+        	for MEMBER in ${MEMBERS[@]}
+        	do
+                	pkill -u "$MEMBER"
+                	userdel --remove "$MEMBER"
+        	done
+        	groupdel $GROUPNAME
+	fi
+}
+
 # parameters: groupname gid
+# NOT USED BUT I AM TOO SILLY TO DELETE IT
 function create_or_change_group() {
 	if ( group_exists "$1" ) 
 	then
@@ -36,7 +56,7 @@ function create_or_change_group() {
 }
 
 # parameters: login src_path dest_path
-function extract_tar_silently() {
+function extract_tar_as_user() {
 	echo "Extracting '$2' to $3"
 	sudo -u "$1" tar -xzf "$2" -C "$3"
 	if [ $? -eq 0 ]
@@ -57,12 +77,9 @@ NAME_SURNAME_LOGIN="Uladzislau_Petravets"
 NAME_SURNAME_GID=505
 NAME_SURNAME_UID=505
 
-# should we delete all the users processes if user is logged in???
-# who | grep -i -m 1 "$NAME_SURNAME_LOGIN" | awk '{ print $1} '
-
 delete_user_if_exists "$NAME_SURNAME_LOGIN"
 
-create_or_change_group "$NAME_SURNAME_LOGIN" $NAME_SURNAME_GID
+delete_group_if_exists "$NAME_SURNAME_LOGIN"
 
 adduser --gid $NAME_SURNAME_GID --uid $NAME_SURNAME_UID "$NAME_SURNAME_LOGIN"
 
@@ -73,16 +90,15 @@ MONGO_GROUPNAME="staff"
 MONGO_UID=600
 MONGO_GID=600
 
-delete_user_if_exists $MONGO_LOGIN
+delete_user_if_exists "$MONGO_LOGIN"
 
-create_or_change_group "$MONGO_GROUPNAME" $MONGO_GID
+delete_group_if_exists "$MONGO_GROUPNAME"
 
 adduser --gid $MONGO_GID --uid $MONGO_UID "$MONGO_LOGIN"
 
 # 3.	(as root) Create folders /apps/mongo/, give 750 permissions, set owner mongo:staff
 
-[ -e /apps/mongo ] && rm -r /apps/mongo
-#[ -e /apps ] && rm -r /apps
+[ -e /apps/mongo ] && rm -r -f /apps/mongo
 
 mkdir --parents /apps/mongo
 chmod 750 /apps/mongo
@@ -96,13 +112,13 @@ mkdir /apps/mongodb
 chmod 750 /apps/mongodb
 chown $MONGO_UID:$MONGO_GID /apps/mongodb
 
-#idk should i set perms and ownership on /apps & /logs dirs, so i let it here
-chmod --recursive 750 /apps
-chown --recursive $MONGO_UID:$MONGO_GID /apps
+# idk should i set perms and ownership on /apps & /logs dirs, so i leave it here
+# chmod --recursive 750 /apps
+# chown --recursive $MONGO_UID:$MONGO_GID /apps
 
 # 5.	(as root) Create folders /logs/mongo/, give 740 permissions, set owner mongo:staff
 
-[ -e /logs/mongo ] && rm -r /logs/mongo
+[ -e /logs/mongo ] && rm -r -f /logs/mongo
 
 mkdir --parents /logs/mongo
 chmod 740 /logs/mongo
@@ -146,11 +162,11 @@ fi
 
 # 8.	(as mongo) Unpack mongodb-linux-x86_64-3.6.5.tgz to /tmp/
 
-extract_tar_silently "$MONGO_LOGIN" "$DOWNLOAD_DIR/$LINUX_TAR_FILENAME" "/tmp"
+extract_tar_as_user "$MONGO_LOGIN" "$DOWNLOAD_DIR/$LINUX_TAR_FILENAME" "/tmp"
 
 # i think i should extract 2nd archive too
 
-extract_tar_silently "$MONGO_LOGIN" "$DOWNLOAD_DIR/$SRC_TAR_FILENAME" "/tmp"
+extract_tar_as_user "$MONGO_LOGIN" "$DOWNLOAD_DIR/$SRC_TAR_FILENAME" "/tmp"
 
 LINUX_FILENAME=${LINUX_TAR_FILENAME%%.tgz}
 SRC_FILENAME=${SRC_TAR_FILENAME%%.tar.gz}
@@ -168,7 +184,6 @@ fi
 
 # 10.	(as mongo) Update PATH on runtime by setting it to PATH=<mongodb-install-directory>/bin:$PATH
 
-# 	WTFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 sudo -u "$MONGO_LOGIN" bash -c "export PATH=\"/apps/mongo/bin${PATH:+:${PATH}}\""
 
 # 11.	(as mongo) Update PATH in .bash_profile and .bashrc with the same
@@ -244,6 +259,4 @@ systemctl enable mongo.service
 # 	c.	Port is really listening
 # 3.	Stop the process
 # 4.	Verify that systemd unit is working (start, status, stop, status).
-
-
 
