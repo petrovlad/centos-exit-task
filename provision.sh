@@ -169,7 +169,8 @@ fi
 # 10.	(as mongo) Update PATH on runtime by setting it to PATH=<mongodb-install-directory>/bin:$PATH
 
 # 	WTFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-sudo -u "$MONGO_LOGIN" export PATH="/apps/mongo/bin${PATH:+:${PATH}}"
+sudo -u "$MONGO_LOGIN" bash -c "export PATH=\"/apps/mongo/bin${PATH:+:${PATH}}\""
+
 
 # 11.	(as mongo) Update PATH in .bash_profile and .bashrc with the same
 
@@ -179,8 +180,8 @@ MONGO_HOME=$( awk -v regex="^$MONGO_LOGIN$" -F: '$1 ~ regex { print $6 }' /etc/p
 
 # MONGODB_INSTALL_PATH="/apps/mongo"
 
-sudo -u "$MONGO_LOGIN" echo -e "# Path to mongo according to the task\nexport PATH="/apps/mongo/bin${PATH:+:${PATH}}"\n" >> "$MONGO_HOME"/.bashprofile
-sudo -u "$MONGO_LOGIN" echo -e "# Path to mongo according to the task\nexport PATH="/apps/mongo/bin${PATH:+:${PATH}}"\n" >> "$MONGO_HOME"/.bashrc
+sudo -u "$MONGO_LOGIN" echo -e "# Path to mongo according to the task\nexport PATH=\"/apps/mongo/bin${PATH:+:${PATH}}\"\n" >> "$MONGO_HOME"/.bash_profile
+sudo -u "$MONGO_LOGIN" echo -e "# Path to mongo according to the task\nexport PATH=\"/apps/mongo/bin${PATH:+:${PATH}}\"\n" >> "$MONGO_HOME"/.bashrc
 
 # 12.	(as root) Setup number of allowed processes for mongo user: soft and hard = 32000
 
@@ -195,6 +196,7 @@ echo -e "# End of file" >> "$LIMITS_PATH"
 # 13.	(as root) Give sudo rights for Name_Surname to run only mongod as mongo user
 
 echo -e "$NAME_SURNAME_LOGIN\tALL=(ALL)\tNOPASSWD:/apps/mongo/bin/mongod" > /etc/sudoers.d/$NAME_SURNAME_LOGIN
+echo -e "alias mongod='sudo -i $MONGO_LOGIN /apps/mongo/bin/mongod -f /etc/mongod.conf'" >> "/home/$NAME_SURNAME_LOGIN/.bashrc"
 
 # 14.	(as root) Create mongo.conf from sample config file from archive 7.
 
@@ -206,8 +208,6 @@ echo -e "$NAME_SURNAME_LOGIN\tALL=(ALL)\tNOPASSWD:/apps/mongo/bin/mongod" > /etc
 sed -i "s,\(^[[:blank:]]*path: \).*,\\1/logs/mongo/mongod.log," /etc/mongod.conf
 sed -i "s,\(^[[:blank:]]*dbPath: \).*,\\1/apps/mongo," /etc/mongod.conf
 sed -i "s,\(^[[:blank:]]*pidFilePath: \).*\( \#.*\),\\1/apps/mongo/mongod.pid\\2," /etc/mongod.conf
-
-exit
 
 # 16.	(as root) Create SystemD unit file called mongo.service. Unit file requirenments:
 # 	a.	Pre-Start: Check if file /apps/mongo/bin/mongod and folders (/apps/mongodb/ and /logs/mongo/) exist, check if permissions and ownership are set correctly.
