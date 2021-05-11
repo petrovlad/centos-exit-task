@@ -169,7 +169,7 @@ fi
 # 10.	(as mongo) Update PATH on runtime by setting it to PATH=<mongodb-install-directory>/bin:$PATH
 
 # 	WTFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-export PATH="/apps/mongo/bin${PATH:+:${PATH}}"
+sudo -u "$MONGO_LOGIN" export PATH="/apps/mongo/bin${PATH:+:${PATH}}"
 
 # 11.	(as mongo) Update PATH in .bash_profile and .bashrc with the same
 
@@ -178,8 +178,9 @@ MONGO_HOME=$( awk -v regex="^$MONGO_LOGIN$" -F: '$1 ~ regex { print $6 }' /etc/p
 # MONGO_HOME=$( sudo --user mongo env | awk -F= '$1 ~ /^HOME$/ { print $2 }' )
 
 # MONGODB_INSTALL_PATH="/apps/mongo"
-sudo -u "$MONGO_LOGIN" echo -e "# Path to mongo according to the task\nexport PATH="apps/mongo/bin${PATH:+:${PATH}}"\n" >> "$MONGO_HOME"/.bashprofile
-sudo -u "$MONGO_LOGIN" echo -e "# Path to mongo according to the task\nexport PATH="apps/mongo/bin${PATH:+:${PATH}}"\n" >> "$MONGO_HOME"/.bashrc
+
+sudo -u "$MONGO_LOGIN" echo -e "# Path to mongo according to the task\nexport PATH="/apps/mongo/bin${PATH:+:${PATH}}"\n" >> "$MONGO_HOME"/.bashprofile
+sudo -u "$MONGO_LOGIN" echo -e "# Path to mongo according to the task\nexport PATH="/apps/mongo/bin${PATH:+:${PATH}}"\n" >> "$MONGO_HOME"/.bashrc
 
 # 12.	(as root) Setup number of allowed processes for mongo user: soft and hard = 32000
 
@@ -187,13 +188,13 @@ LIMITS_PATH="/etc/security/limits.conf"
 sed -i '/End of file/d' "$LIMITS_PATH"
 # delete all records about $MONGO_LOGIN
 sed -i "/$MONGO_LOGIN/d" "$LIMITS_PATH"
-echo "$MONGO_LOGIN\tsoft\tproc\t32000" >> "$LIMITS_PATH"
-echo "$MONGO_LOGIN\thard\tproc\t32000" >> "$LIMITS_PATH"
-echo "# End of file" >> "$LIMITS_PATH"
+echo -e "$MONGO_LOGIN\tsoft\tproc\t32000" >> "$LIMITS_PATH"
+echo -e "$MONGO_LOGIN\thard\tproc\t32000" >> "$LIMITS_PATH"
+echo -e "# End of file" >> "$LIMITS_PATH"
 
 # 13.	(as root) Give sudo rights for Name_Surname to run only mongod as mongo user
 
-echo -e "$NAME_SURNAME_LOGIN\tALL=(ALL)\tNOPASSWD:/apps/mongo/bin/mongod" >> /etc/sudoers.d/$NAME_SURNAME_LOGIN
+echo -e "$NAME_SURNAME_LOGIN\tALL=(ALL)\tNOPASSWD:/apps/mongo/bin/mongod" > /etc/sudoers.d/$NAME_SURNAME_LOGIN
 
 # 14.	(as root) Create mongo.conf from sample config file from archive 7.
 
