@@ -59,6 +59,7 @@ NAME_SURNAME_UID=505
 
 # should we delete all the users processes if user is logged in???
 # who | grep -i -m 1 "$NAME_SURNAME_LOGIN" | awk '{ print $1} '
+
 delete_user_if_exists "$NAME_SURNAME_LOGIN"
 
 create_or_change_group "$NAME_SURNAME_LOGIN" $NAME_SURNAME_GID
@@ -91,13 +92,13 @@ chown $MONGO_UID:$MONGO_GID /apps/mongo
 
 [ -e /apps/mongodb ] && rm -r /apps/mongodb
 
-mkdir --parents /apps/mongodb
+mkdir /apps/mongodb
 chmod 750 /apps/mongodb
 chown $MONGO_UID:$MONGO_GID /apps/mongodb
 
 #idk should i set perms and ownership on /apps & /logs dirs, so i let it here
-#chmod --recursive 750 /apps
-#chown --recursive $MONGO_UID:$MONGO_GID /apps
+chmod --recursive 750 /apps
+chown --recursive $MONGO_UID:$MONGO_GID /apps
 
 # 5.	(as root) Create folders /logs/mongo/, give 740 permissions, set owner mongo:staff
 
@@ -131,7 +132,6 @@ then
 else
 	echo "some errors occurs while downloading with wget"
 fi
-
 
 # 7.	(as mongo) Download with curl https://fastdl.mongodb.org/src/mongodb-src-r3.6.5.tar.gz
 SRC_TAR_FILENAME="mongodb-src-r3.6.5.tar.gz"
@@ -171,12 +171,10 @@ fi
 # 	WTFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 sudo -u "$MONGO_LOGIN" bash -c "export PATH=\"/apps/mongo/bin${PATH:+:${PATH}}\""
 
-
 # 11.	(as mongo) Update PATH in .bash_profile and .bashrc with the same
 
 # get mongo home directory because sudo will overwrite it with root home dir
 MONGO_HOME=$( awk -v regex="^$MONGO_LOGIN$" -F: '$1 ~ regex { print $6 }' /etc/passwd )
-# MONGO_HOME=$( sudo --user mongo env | awk -F= '$1 ~ /^HOME$/ { print $2 }' )
 
 # MONGODB_INSTALL_PATH="/apps/mongo"
 
@@ -195,8 +193,8 @@ echo -e "# End of file" >> "$LIMITS_PATH"
 
 # 13.	(as root) Give sudo rights for Name_Surname to run only mongod as mongo user
 
-echo -e "$NAME_SURNAME_LOGIN\tALL=(ALL)\tNOPASSWD:/apps/mongo/bin/mongod" > /etc/sudoers.d/$NAME_SURNAME_LOGIN
-echo -e "alias mongod='sudo -i $MONGO_LOGIN /apps/mongo/bin/mongod -f /etc/mongod.conf'" >> "/home/$NAME_SURNAME_LOGIN/.bashrc"
+echo -e "$NAME_SURNAME_LOGIN\tALL=(mongo)\tNOPASSWD:/apps/mongo/bin/mongod" > /etc/sudoers.d/$NAME_SURNAME_LOGIN
+echo -e "alias mongod='sudo -u $MONGO_LOGIN /apps/mongo/bin/mongod -f /etc/mongod.conf'" >> "/home/$NAME_SURNAME_LOGIN/.bashrc"
 
 # 14.	(as root) Create mongo.conf from sample config file from archive 7.
 
@@ -223,7 +221,7 @@ Type=forking
 PIDFile=/apps/mongo/mongod.pid
 ExecStartPre=/bin/bash [ -d /apps/mongo ] && [ -d /apps/mongodb ] && [ -d /logs/mongo ] && [ -f /apps/mongo/bin/mongod ] && [ "\$( stat -c \"%U %G %a\" /apps/mongo )" = "$MONGO_UID $MONGO_GID 750" ] && [ "\$( stat -c "%u %g %a" /apps/mongodb )" = "$MONGO_UID $MONGO_GID 750" ] && [ "\$( stat -c "%u %g %a" /logs/mongo )" = "$MONGO_UID $MONGO_GID 740" ]
 ExecStart=/apps/mongo/bin/mongod --config /etc/mongod.conf
-ExecReload=/bin/kill -HUP $MAINPID
+ExecReload=/bin/kill -HUP \$MAINPID
 User=mongo
 Group=staff
 
