@@ -2,8 +2,8 @@
 
 function help() {
 	echo -e "Usage: $0 [OPTION]"
-	echo -e "\t-v\tVerbose mode (detailed output)"
-	echo -e "\t-h\tPrint help and exit\n"
+	echo -e "\t-v. --verbose\tVerbose mode (detailed output)\n\t\t\t(by default there is no output at all)"
+	echo -e "\t-h, --help\tPrint help and exit\n"
 }
 
 
@@ -28,7 +28,7 @@ function delete_user_if_exists() {
 		who | grep -i -m 1 "$NAME_SURNAME_LOGIN"
 		# if exit code == 0 then user is logged in
 		pkill -KILL -u "$1"
-		userdel --remove "$1"	
+		userdel --remove "$1" >& /dev/null	
 	fi 
 }
 
