@@ -212,6 +212,25 @@ sed -i "s,\(^[[:blank:]]*pidFilePath: \).*\( \#.*\),\\1/apps/mongo/mongod.pid\\2
 # 16.	(as root) Create SystemD unit file called mongo.service. Unit file requirenments:
 # 	a.	Pre-Start: Check if file /apps/mongo/bin/mongod and folders (/apps/mongodb/ and /logs/mongo/) exist, check if permissions and ownership are set correctly.
 
+cat << EOT > /etc/systemd/system/mongo.service
+[Unit]
+Description=hehe boi
+Wants=network.target
+After=network.target
+
+[Service]
+Type=forking
+PIDFile=/apps/mongo/mongod.pid
+ExecStartPre=/bin/bash [ -d /apps/mongo ] && [ -d /apps/mongodb ] && [ -d /logs/mongo ] && [ -f /apps/mongo/bin/mongod ] && [ "\$( stat -c \"%U %G %a\" /apps/mongo )" = "$MONGO_UID $MONGO_GID 750" ] && [ "\$( stat -c "%u %g %a" /apps/mongodb )" = "$MONGO_UID $MONGO_GID 750" ] && [ "\$( stat -c "%u %g %a" /logs/mongo )" = "$MONGO_UID $MONGO_GID 740" ]
+ExecStart=/apps/mongo/bin/mongod --config /etc/mongod.conf
+ExecReload=/bin/kill -HUP $MAINPID
+User=mongo
+Group=staff
+
+[Install]
+WantedBy=multi-user.target
+
+EOT
 
 systemctl daemon-reload
 
